@@ -53,7 +53,7 @@ class JSONApiPagination(BasePagination):
         })
 
 
-class PageNumberPagination(JSONApiPagination, DRFPageNumberPagination):
+class PageNumberPagination(DRFPageNumberPagination, JSONApiPagination):
     """
     A json-api compatible pagination format.
     """

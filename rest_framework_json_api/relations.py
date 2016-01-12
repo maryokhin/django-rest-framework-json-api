@@ -1,12 +1,54 @@
 import json
 
+from django.utils.functional import cached_property
+from django.utils.translation import ugettext_lazy as _
 from rest_framework.fields import MISSING_ERROR_MESSAGE
 from rest_framework.relations import *
-from django.utils.translation import ugettext_lazy as _
 
 from rest_framework_json_api.exceptions import Conflict
 from rest_framework_json_api.utils import format_relation_name, Hyperlink, \
     get_resource_type_from_queryset, get_resource_type_from_instance
+
+
+class ManyResourceRelatedField(ManyRelatedField):
+    """
+    A `ResourceRelatedField` that understands how to handle nested relationships (i.e pagination).
+    """
+
+    @cached_property
+    def relationship_paginator(self):
+        """
+        Try to get relationship paginator from the underlying view or the one globally defined in settings.
+
+        :return: relationship paginator instance or `None` if relationship pagination is not set.
+        """
+        paginator = None
+        view = self.context.get('view')
+        view_pagination_class = getattr(view, 'relationship_pagination_class')
+        # settings_pagination_class = api_settings.DEFAULT_RELATIONSHIP_PAGINATION_CLASS
+        settings_pagination_class = None  # TODO: package not bootstrapping its' settings correctly
+
+        relationship_pagination_class = view_pagination_class or settings_pagination_class
+
+        if relationship_pagination_class:
+            paginator = relationship_pagination_class()
+
+        return paginator
+
+    def get_attribute(self, instance):
+        """
+        Checks if relationship pagination is enabled and paginates the queryset before passing it to
+        `to_representation`, if required.
+
+        :return: paginated or unpaginated relationship queryset.
+        """
+        relationship = super().get_attribute(instance)
+        paginator = self.relationship_paginator
+
+        if paginator:
+            relationship = paginator.paginate_queryset(relationship, self.context['request'], self.context['view'])
+
+        return relationship
 
 
 class ResourceRelatedField(PrimaryKeyRelatedField):
@@ -42,6 +84,17 @@ class ResourceRelatedField(PrimaryKeyRelatedField):
         self.reverse = reverse
 
         super(ResourceRelatedField, self).__init__(**kwargs)
+
+    @classmethod
+    def many_init(cls, *args, **kwargs):
+        """
+        Call `ManyResourceRelatedField` to handle multiple nested relationships.
+        """
+        list_kwargs = {'child_relation': cls(*args, **kwargs)}
+        for key in kwargs.keys():
+            if key in MANY_RELATION_KWARGS:
+                list_kwargs[key] = kwargs[key]
+        return ManyResourceRelatedField(**list_kwargs)
 
     def use_pk_only_optimization(self):
         # We need the real object to determine its type...
