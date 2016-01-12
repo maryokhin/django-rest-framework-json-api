@@ -10,6 +10,7 @@ from rest_framework import renderers
 from rest_framework.serializers import BaseSerializer, ListSerializer, ModelSerializer
 from rest_framework.settings import api_settings
 
+from rest_framework_json_api.relations import ManyResourceRelatedField
 from . import utils
 
 
@@ -111,7 +112,7 @@ class JSONRenderer(renderers.JSONRenderer):
 
                 data.update({field_name: {
                     'links': {
-                        "related": resource.get(field_name)},
+                        'related': resource.get(field_name)},
                     'data': relation_data,
                     'meta': {
                         'count': len(relation_data)
@@ -149,44 +150,24 @@ class JSONRenderer(renderers.JSONRenderer):
                 data.update({field_name: relation_data})
                 continue
 
-            if isinstance(field, relations.ManyRelatedField):
+            if isinstance(field, ManyResourceRelatedField):
+                relation_data = {
+                    'data': resource.get(field_name)
+                }
 
-                if isinstance(field.child_relation, ResourceRelatedField):
-                    # special case for ResourceRelatedField
-                    relation_data = {
-                        'data': resource.get(field_name)
-                    }
-
-                    field_links = field.child_relation.get_links(resource_instance)
-                    relation_data.update(
-                        {'links': field_links}
-                        if field_links else dict()
-                    )
-                    relation_data.update(
-                        {
-                            'meta': {
-                                'count': len(resource.get(field_name))
-                            }
-                        }
-                    )
-                    data.update({field_name: relation_data})
-                    continue
-
-                relation_data = list()
-                for related_object in relation_instance_or_manager.all():
-                    related_object_type = utils.get_instance_or_manager_resource_type(related_object)
-                    relation_data.append(OrderedDict([
-                        ('type', related_object_type),
-                        ('id', encoding.force_text(related_object.pk))
-                    ]))
-                data.update({
-                    field_name: {
-                        'data': relation_data,
+                field_links = field.get_links(resource_instance)
+                relation_data.update(
+                    {'links': field_links}
+                    if field_links else dict()
+                )
+                relation_data.update(
+                    {
                         'meta': {
-                            'count': len(relation_data)
+                            'count': len(resource.get(field_name))
                         }
                     }
-                })
+                )
+                data.update({field_name: relation_data})
                 continue
 
             if isinstance(field, ListSerializer):

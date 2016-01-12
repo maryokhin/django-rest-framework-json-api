@@ -53,7 +53,7 @@ class JSONApiPagination(BasePagination):
         })
 
 
-class PageNumberPagination(DRFPageNumberPagination, JSONApiPagination):
+class PageNumberPagination(JSONApiPagination, DRFPageNumberPagination):
     """
     A json-api compatible pagination format.
     """
@@ -72,6 +72,12 @@ class PageNumberPagination(DRFPageNumberPagination, JSONApiPagination):
 
     def get_last_link(self):
         return self.build_link(self.page.paginator.num_pages)
+
+    def get_next_link(self):
+        return DRFPageNumberPagination.get_next_link(self)
+
+    def get_previous_link(self):
+        return DRFPageNumberPagination.get_previous_link(self)
 
     def get_pagination_meta(self):
         return OrderedDict([

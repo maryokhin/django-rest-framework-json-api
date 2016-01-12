@@ -16,7 +16,7 @@ class ManyResourceRelatedField(ManyRelatedField):
     """
 
     @cached_property
-    def relationship_paginator(self):
+    def paginator(self):
         """
         Try to get relationship paginator from the underlying view or the one globally defined in settings.
 
@@ -43,12 +43,25 @@ class ManyResourceRelatedField(ManyRelatedField):
         :return: paginated or unpaginated relationship queryset.
         """
         relationship = super().get_attribute(instance)
-        paginator = self.relationship_paginator
 
-        if paginator:
-            relationship = paginator.paginate_queryset(relationship, self.context['request'], self.context['view'])
+        if self.paginator:
+            relationship = self.paginator.paginate_queryset(relationship, self.context['request'], self.context['view'])
 
         return relationship
+
+    def get_links(self, instance):
+        """
+        Checks if relationship pagination is enabled and adds pagination links, if required.
+
+        :return: relationship links along with pagination links if pagination is enabled.
+        """
+        links = self.child_relation.get_links(instance)
+
+        if self.paginator:
+            # FIXME: currently pagination links are not correct because they point to parent resource
+            links.update(self.paginator.get_pagination_links())
+
+        return links
 
 
 class ResourceRelatedField(PrimaryKeyRelatedField):
@@ -158,6 +171,7 @@ class ResourceRelatedField(PrimaryKeyRelatedField):
             return_data.update({'self': self_link})
         if related_link:
             return_data.update({'related': related_link})
+
         return return_data
 
     def to_internal_value(self, data):
